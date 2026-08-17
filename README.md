@@ -32,7 +32,7 @@ The global instruction file `~/.config/opencode/MEMORY.md` directs agents to sea
 - Ollama `bge-m3` multilingual embeddings, generated locally.
 - Streamable HTTP MCP server using a database role that is read-only by policy and grants.
 - Restic encrypted backup on `/Volumes/1TB-SSD/opencode-memory-restic`.
-- macOS LaunchAgent backup every four hours.
+- macOS LaunchAgent backup every 24 hours.
 
 ## Operations
 
