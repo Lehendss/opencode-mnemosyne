@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.opencode.memory.backup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-lc</string>
+        <string>/Users/lehends/opencode-memory/scripts/backup.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>86400</integer>
+    <key>WorkingDirectory</key>
+    <string>/Users/lehends/opencode-memory</string>
+    <key>StandardOutPath</key>
+    <string>/Users/lehends/opencode-memory/logs/backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lehends/opencode-memory/logs/backup-error.log</string>
+</dict>
+</plist>
