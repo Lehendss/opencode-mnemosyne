@@ -17,10 +17,12 @@ The plugin never connects to PostgreSQL or MinIO. If the stack is unavailable, e
 
 The global OpenCode configuration loads:
 
-- Plugin: `file:///Users/USER_NAME/opencode-memory/plugin/index.js`
+- Plugin: `file:///path/to/opencode-memory/plugin/index.js`
 - MCP: `http://127.0.0.1:8787/mcp`
 
 OpenCode must be restarted after plugin or configuration changes.
+
+Replace `/path/to/opencode-memory` in the examples and LaunchAgent template with the absolute path of your clone.
 
 The global instruction file `~/.config/opencode/MEMORY.md` directs agents to search durable memory at the start of non-trivial tasks, verify retrieved history against current code, and cite source identifiers.
 

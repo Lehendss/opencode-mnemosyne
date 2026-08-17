@@ -8,15 +8,15 @@
     <array>
         <string>/bin/zsh</string>
         <string>-lc</string>
-        <string>/Users/USER_NAME/opencode-memory/scripts/backup.sh</string>
+        <string>/path/to/opencode-memory/scripts/backup.sh</string>
     </array>
     <key>StartInterval</key>
     <integer>86400</integer>
     <key>WorkingDirectory</key>
-    <string>/Users/USER_NAME/opencode-memory</string>
+    <string>/path/to/opencode-memory</string>
     <key>StandardOutPath</key>
-    <string>/Users/USER_NAME/opencode-memory/logs/backup.log</string>
+    <string>/path/to/opencode-memory/logs/backup.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/USER_NAME/opencode-memory/logs/backup-error.log</string>
+    <string>/path/to/opencode-memory/logs/backup-error.log</string>
 </dict>
 </plist>
