@@ -17,7 +17,7 @@ The plugin never connects to PostgreSQL or MinIO. If the stack is unavailable, e
 
 The global OpenCode configuration loads:
 
-- Plugin: `file:///Users/lehends/opencode-memory/plugin/index.js`
+- Plugin: `file:///Users/USER_NAME/opencode-memory/plugin/index.js`
 - MCP: `http://127.0.0.1:8787/mcp`
 
 OpenCode must be restarted after plugin or configuration changes.
