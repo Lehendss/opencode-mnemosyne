@@ -20,8 +20,11 @@ MINIO_BUCKET=memory-raw
 OLLAMA_URL=http://host.docker.internal:11434
 EMBEDDING_MODEL=bge-m3
 EMBEDDING_DIMENSION=1024
+EMBEDDING_BATCH_SIZE=4
+EMBEDDING_TIMEOUT_SECONDS=180
 OUTBOX_ROOT=/data/outbox
 ARCHIVE_RETENTION_DAYS=30
+RETRY_DELAY_SECONDS=300
 MAX_MEMORY_CHARS=24000
 MCP_PORT=8787
 EOF
@@ -30,6 +33,7 @@ fi
 mkdir -p \
   "$ROOT/data/outbox/pending" \
   "$ROOT/data/outbox/processing" \
+  "$ROOT/data/outbox/retry" \
   "$ROOT/data/outbox/archive" \
   "$ROOT/data/outbox/failed" \
   "$ROOT/data/postgres" \

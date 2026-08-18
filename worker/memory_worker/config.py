@@ -13,8 +13,11 @@ class Settings:
     ollama_url: str
     embedding_model: str
     embedding_dimension: int
+    embedding_batch_size: int
+    embedding_timeout_seconds: int
     outbox_root: Path
     archive_retention_days: int
+    retry_delay_seconds: int
     max_memory_chars: int
 
     @classmethod
@@ -28,7 +31,10 @@ class Settings:
             ollama_url=os.getenv("OLLAMA_URL", "http://host.docker.internal:11434").rstrip("/"),
             embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3"),
             embedding_dimension=int(os.getenv("EMBEDDING_DIMENSION", "1024")),
+            embedding_batch_size=max(1, int(os.getenv("EMBEDDING_BATCH_SIZE", "4"))),
+            embedding_timeout_seconds=max(1, int(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "180"))),
             outbox_root=Path(os.getenv("OUTBOX_ROOT", "/data/outbox")),
             archive_retention_days=int(os.getenv("ARCHIVE_RETENTION_DAYS", "30")),
+            retry_delay_seconds=max(1, int(os.getenv("RETRY_DELAY_SECONDS", "300"))),
             max_memory_chars=int(os.getenv("MAX_MEMORY_CHARS", "24000")),
         )

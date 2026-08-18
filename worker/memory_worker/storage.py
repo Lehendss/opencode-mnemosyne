@@ -121,7 +121,7 @@ class Database:
                             session["session_id"], session["project_id"], session.get("project_label"),
                             session.get("title"), session.get("directory_hash"), session.get("opencode_version"),
                             session.get("started_at"), session["updated_at"], session.get("deleted_at"),
-                            json.dumps(session.get("metadata", {})),
+                            _json(session.get("metadata", {})),
                         ),
                     )
                 for item, embedding in zip(memories, embeddings):
@@ -157,7 +157,7 @@ class Database:
                             item["memory_id"], item["project_id"], item.get("project_label"),
                             item.get("session_id"), item.get("message_id"), item["source_type"],
                             item["source_id"], item["kind"], item.get("title"), item["content"],
-                            item["content_sha256"], json.dumps(item.get("metadata", {})),
+                            item["content_sha256"], _json(item.get("metadata", {})),
                             item.get("importance", 0.5), item.get("confidence", 0.8),
                             item.get("valid_from"), item["occurred_at"], self.embedding_model,
                             _vector(embedding),
@@ -209,3 +209,7 @@ class Database:
 
 def _vector(values: List[float]) -> str:
     return "[" + ",".join("%.9g" % value for value in values) + "]"
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value).replace("\\u0000", "")

@@ -32,6 +32,16 @@ class NormalizationTest(unittest.TestCase):
         self.assertEqual(memories[0]["source_id"], "part-1")
         self.assertEqual(memories[0]["content"], "A durable technical decision")
 
+    def test_nul_bytes_are_removed_from_database_text(self):
+        envelope = self.envelope()
+        envelope["project_label"] = "project\x00name"
+        envelope["payload"]["properties"]["part"]["text"] = "before\x00after"
+
+        memories = memories_from_envelope(envelope, 1000)
+
+        self.assertEqual(memories[0]["project_label"], "projectname")
+        self.assertEqual(memories[0]["content"], "beforeafter")
+
     def test_reasoning_is_not_persisted_as_memory(self):
         envelope = self.envelope()
         envelope["payload"]["properties"]["part"]["type"] = "reasoning"

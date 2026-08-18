@@ -18,7 +18,7 @@ export function sha256(value) {
 }
 
 export function redactString(value) {
-  let result = value.split(homedir()).join("~")
+  let result = value.replaceAll("\u0000", "").split(homedir()).join("~")
   for (const pattern of SECRET_PATTERNS) result = result.replace(pattern, "[REDACTED]")
   if (result.length > MAX_STRING_CHARS) {
     return `${result.slice(0, MAX_STRING_CHARS)}\n[TRUNCATED ${result.length - MAX_STRING_CHARS} CHARS]`

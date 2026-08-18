@@ -47,8 +47,8 @@ IMPORTANCE_BY_KIND = {
 
 def _text(value: Any, maximum: int) -> str:
     if isinstance(value, str):
-        return value[:maximum].strip()
-    return json.dumps(value, ensure_ascii=False, sort_keys=True)[:maximum].strip()
+        return value.replace("\x00", "")[:maximum].strip()
+    return json.dumps(value, ensure_ascii=False, sort_keys=True).replace("\\u0000", "")[:maximum].strip()
 
 
 def _memory(
@@ -63,7 +63,8 @@ def _memory(
     importance: Optional[float] = None,
     confidence: float = 0.80,
 ) -> Optional[Dict[str, Any]]:
-    content = content.strip()
+    content = content.replace("\x00", "").strip()
+    title = title.replace("\x00", "") if title else title
     if not content:
         return None
     project_id = envelope["project_id"]
@@ -71,7 +72,7 @@ def _memory(
     return {
         "memory_id": str(uuid.uuid5(MEMORY_NAMESPACE, identity)),
         "project_id": project_id,
-        "project_label": envelope.get("project_label"),
+        "project_label": _text(envelope.get("project_label", ""), 500) or None,
         "session_id": envelope.get("session_id"),
         "message_id": message_id or envelope.get("message_id"),
         "source_type": source_type,
@@ -396,12 +397,12 @@ def session_from_envelope(envelope: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return {
         "session_id": session_id,
         "project_id": envelope["project_id"],
-        "project_label": envelope.get("project_label"),
-        "title": info.get("title"),
+        "project_label": _text(envelope.get("project_label", ""), 500) or None,
+        "title": _text(info.get("title", ""), 2000) or None,
         "directory_hash": hashlib.sha256(info.get("directory", "").encode("utf-8")).hexdigest()
         if info.get("directory")
         else None,
-        "opencode_version": info.get("version"),
+        "opencode_version": _text(info.get("version", ""), 200) or None,
         "started_at": _millis_to_iso(time.get("created")),
         "updated_at": _millis_to_iso(time.get("updated")) or envelope["occurred_at"],
         "deleted_at": deleted_at,

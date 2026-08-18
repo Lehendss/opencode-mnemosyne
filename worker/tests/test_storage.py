@@ -19,10 +19,13 @@ sys.modules.setdefault("botocore", botocore)
 sys.modules.setdefault("botocore.exceptions", botocore_exceptions)
 sys.modules.setdefault("psycopg", psycopg)
 
-from memory_worker.storage import RawStorage
+from memory_worker.storage import RawStorage, _json
 
 
 class RawStorageTest(unittest.TestCase):
+    def test_json_metadata_removes_nul_escape(self):
+        self.assertEqual(_json({"value": "before\x00after"}), '{"value": "beforeafter"}')
+
     def envelope(self):
         return {
             "schema_version": 1,

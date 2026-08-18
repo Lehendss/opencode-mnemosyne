@@ -33,6 +33,10 @@ test("redacts connection strings and bearer tokens", () => {
   assert.equal(result.includes("abc.def.ghi"), false)
 })
 
+test("removes NUL bytes before persistence", () => {
+  assert.equal(redactString("before\u0000after"), "beforeafter")
+})
+
 test("derives identifiers from part events", () => {
   assert.deepEqual(
     eventIdentity("message.part.updated", {

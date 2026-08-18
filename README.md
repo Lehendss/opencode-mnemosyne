@@ -11,7 +11,7 @@ OpenCode plugin -> atomic filesystem outbox -> Python worker
                                             -> read-only MCP -> OpenCode
 ```
 
-The plugin never connects to PostgreSQL or MinIO. If the stack is unavailable, events remain in `data/outbox/pending` and are processed when services return.
+The plugin never connects to PostgreSQL or MinIO. If the stack is unavailable, events remain in `data/outbox/pending` and are processed when services return. Embeddings are generated in bounded batches, and transient failures move to `data/outbox/retry` so one large event cannot block the queue.
 
 ## Installed integration
 
@@ -124,7 +124,7 @@ Each backup contains:
 - A consistent SQLite Online Backup of OpenCode.
 - PostgreSQL custom-format dump.
 - MinIO raw objects.
-- Pending, processing, failed and archived outbox files.
+- Pending, processing, retry, failed and archived outbox files.
 - Platform source and sanitized OpenCode integration configuration.
 - Manifest and SHA-256 checksums.
 

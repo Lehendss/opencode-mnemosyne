@@ -23,7 +23,7 @@ def stop(_signum, _frame):
 
 
 def ensure_directories(root: Path):
-    for name in ("pending", "processing", "archive", "failed"):
+    for name in ("pending", "processing", "retry", "archive", "failed"):
         (root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
 
 
@@ -32,6 +32,18 @@ def recover_stale(root: Path):
     for path in (root / "processing").glob("*.json"):
         if path.stat().st_mtime < threshold:
             os.replace(path, root / "pending" / path.name)
+
+
+def recover_retries(root: Path, delay_seconds: int):
+    threshold = time.time() - delay_seconds
+    for path in (root / "retry").glob("*.json"):
+        if path.stat().st_mtime >= threshold:
+            continue
+        pending = root / "pending" / path.name
+        if pending.exists():
+            path.unlink()
+        else:
+            os.replace(path, pending)
 
 
 def archive_path(root: Path, filename: str) -> Path:
@@ -47,7 +59,7 @@ def archive_path(root: Path, filename: str) -> Path:
     return directory / filename
 
 
-def process(path: Path, settings: Settings, raw_storage, database, embedder):
+def process(path: Path, settings: Settings, raw_storage, database, embedder, on_progress=None):
     with path.open("r", encoding="utf-8") as handle:
         envelope = json.load(handle)
     if envelope.get("schema_version") != 1:
@@ -57,7 +69,7 @@ def process(path: Path, settings: Settings, raw_storage, database, embedder):
 
     raw_key, raw_hash, payload_size = raw_storage.store(envelope)
     memories = memories_from_envelope(envelope, settings.max_memory_chars)
-    embeddings = embedder.embed([memory["content"] for memory in memories])
+    embeddings = embedder.embed([memory["content"] for memory in memories], on_progress)
     database.persist(
         envelope,
         raw_key,
@@ -78,14 +90,17 @@ def prune_archive(root: Path, days: int):
             path.unlink()
 
 
-def write_health(root: Path, status: str, error=None):
+def write_health(root: Path, status: str, error=None, progress=None, include_counts=True):
     health = {
         "status": status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "pending": len(list((root / "pending").glob("*.json"))),
-        "failed": len(list((root / "failed").glob("*.json"))),
         "error": str(error) if error else None,
+        "progress": progress,
     }
+    if include_counts:
+        health["pending"] = len(list((root / "pending").glob("*.json")))
+        health["retry"] = len(list((root / "retry").glob("*.json")))
+        health["failed"] = len(list((root / "failed").glob("*.json")))
     Path("/tmp/worker-health.json").write_text(json.dumps(health), encoding="utf-8")
 
 
@@ -100,13 +115,23 @@ def main():
         settings.minio_bucket,
     )
     database = Database(settings.database_url, settings.embedding_model)
-    embedder = OllamaEmbeddings(settings.ollama_url, settings.embedding_model, settings.embedding_dimension)
+    embedder = OllamaEmbeddings(
+        settings.ollama_url,
+        settings.embedding_model,
+        settings.embedding_dimension,
+        settings.embedding_batch_size,
+        settings.embedding_timeout_seconds,
+    )
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     last_prune = 0
+    last_retry_recovery = 0
 
     while RUNNING:
         try:
+            if time.time() - last_retry_recovery > 30:
+                recover_retries(settings.outbox_root, settings.retry_delay_seconds)
+                last_retry_recovery = time.time()
             pending = next(settings.outbox_root.joinpath("pending").glob("*.json"), None)
             if pending is None:
                 write_health(settings.outbox_root, "ok")
@@ -118,7 +143,24 @@ def main():
             except FileNotFoundError:
                 continue
             try:
-                process(claimed, settings, raw_storage, database, embedder)
+                write_health(
+                    settings.outbox_root,
+                    "processing",
+                    progress={"event": claimed.name, "completed": 0, "total": None},
+                )
+                process(
+                    claimed,
+                    settings,
+                    raw_storage,
+                    database,
+                    embedder,
+                    lambda completed, total: write_health(
+                        settings.outbox_root,
+                        "processing",
+                        progress={"event": claimed.name, "completed": completed, "total": total},
+                        include_counts=False,
+                    ),
+                )
                 os.replace(claimed, archive_path(settings.outbox_root, claimed.name))
                 write_health(settings.outbox_root, "ok")
             except (ValueError, json.JSONDecodeError) as error:
@@ -128,7 +170,9 @@ def main():
                 write_health(settings.outbox_root, "degraded", error)
             except Exception as error:
                 LOGGER.exception("Transient failure for %s", claimed.name)
-                os.replace(claimed, settings.outbox_root / "pending" / claimed.name)
+                retry = settings.outbox_root / "retry" / claimed.name
+                os.replace(claimed, retry)
+                os.utime(retry, None)
                 write_health(settings.outbox_root, "degraded", error)
                 time.sleep(5)
             if time.time() - last_prune > 3600:
