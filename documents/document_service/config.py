@@ -1,0 +1,24 @@
+import os
+
+
+DATABASE_URL = os.environ["DATABASE_URL"]
+MINIO_ENDPOINT = os.environ["MINIO_ENDPOINT"]
+MINIO_ACCESS_KEY = os.environ["MINIO_ACCESS_KEY"]
+MINIO_SECRET_KEY = os.environ["MINIO_SECRET_KEY"]
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "memory-raw")
+DOCUMENT_API_TOKEN = os.environ["DOCUMENT_API_TOKEN"]
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434").rstrip("/")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3")
+EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "1024"))
+if EMBEDDING_DIMENSION != 1024:
+    raise ValueError("Document schema requires EMBEDDING_DIMENSION=1024")
+EMBEDDING_BATCH_SIZE = max(1, int(os.getenv("EMBEDDING_BATCH_SIZE", "4")))
+EMBEDDING_TIMEOUT_SECONDS = max(1, int(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "180")))
+MAX_DOCUMENT_BYTES = int(os.getenv("MAX_DOCUMENT_BYTES", str(50 * 1024 * 1024)))
+MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "500"))
+MAX_PAGES_PER_READ = int(os.getenv("MAX_PAGES_PER_READ", "8"))
+MAX_PAGES_PER_VIEW = int(os.getenv("MAX_PAGES_PER_VIEW", "4"))
+MAX_PAGE_RESPONSE_CHARS = int(os.getenv("MAX_PAGE_RESPONSE_CHARS", "12000"))
+MAX_READ_RESPONSE_CHARS = int(os.getenv("MAX_READ_RESPONSE_CHARS", "48000"))
+OCR_MIN_CHARS = int(os.getenv("OCR_MIN_CHARS", "40"))
+JOB_MAX_ATTEMPTS = int(os.getenv("DOCUMENT_JOB_MAX_ATTEMPTS", "3"))

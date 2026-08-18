@@ -13,6 +13,7 @@ services:
       - ./data/postgres:/var/lib/postgresql/data
       - ./database/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
       - ./database/schema.sql:/schema.sql:ro
+      - ./database/documents.sql:/documents.sql:ro
     ports:
       - "127.0.0.1:55432:5432"
     healthcheck:
@@ -48,6 +49,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
+      DOCUMENT_MINIO_USER: ${DOCUMENT_MINIO_USER}
+      DOCUMENT_MINIO_PASSWORD: ${DOCUMENT_MINIO_PASSWORD}
     entrypoint: ["/bin/sh", "/scripts/init-minio.sh"]
     volumes:
       - ./scripts/init-minio.sh:/scripts/init-minio.sh:ro
@@ -58,12 +61,21 @@ services:
       context: .
       dockerfile: worker/Dockerfile
     restart: unless-stopped
-    env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-4}
+      EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-180}
+      OUTBOX_ROOT: ${OUTBOX_ROOT:-/data/outbox}
+      ARCHIVE_RETENTION_DAYS: ${ARCHIVE_RETENTION_DAYS:-30}
+      RETRY_DELAY_SECONDS: ${RETRY_DELAY_SECONDS:-300}
+      MAX_MEMORY_CHARS: ${MAX_MEMORY_CHARS:-24000}
     volumes:
       - ./data/outbox:/data/outbox
     depends_on:
@@ -82,9 +94,12 @@ services:
       context: .
       dockerfile: mcp/Dockerfile
     restart: unless-stopped
-    env_file: .env
     environment:
       DATABASE_URL: postgresql://memory_reader:${MEMORY_READER_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      MCP_PORT: 8787
     ports:
       - "127.0.0.1:${MCP_PORT}:8787"
       - "127.0.0.1:${WEBUI_PORT:-8788}:8788"
@@ -96,3 +111,111 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+
+  documents-migrate:
+    build:
+      context: .
+      dockerfile: documents/Dockerfile
+    command: ["python", "-m", "document_service.migrate"]
+    restart: "no"
+    environment:
+      DATABASE_ADMIN_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DOCUMENT_DB_PASSWORD: ${DOCUMENT_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  documents:
+    build:
+      context: .
+      dockerfile: documents/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://document_writer:${DOCUMENT_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${DOCUMENT_MINIO_USER}
+      MINIO_SECRET_KEY: ${DOCUMENT_MINIO_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      DOCUMENT_API_TOKEN: ${DOCUMENT_API_TOKEN}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-4}
+      EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-180}
+      MAX_DOCUMENT_BYTES: ${MAX_DOCUMENT_BYTES:-52428800}
+      MAX_DOCUMENT_PAGES: ${MAX_DOCUMENT_PAGES:-500}
+      MAX_PAGES_PER_READ: ${MAX_PAGES_PER_READ:-8}
+      MAX_PAGES_PER_VIEW: ${MAX_PAGES_PER_VIEW:-4}
+      MAX_PAGE_RESPONSE_CHARS: ${MAX_PAGE_RESPONSE_CHARS:-12000}
+      MAX_READ_RESPONSE_CHARS: ${MAX_READ_RESPONSE_CHARS:-48000}
+      OCR_MIN_CHARS: ${OCR_MIN_CHARS:-40}
+      DOCUMENT_JOB_MAX_ATTEMPTS: ${DOCUMENT_JOB_MAX_ATTEMPTS:-3}
+    ports:
+      - "127.0.0.1:${DOCUMENT_PORT:-8789}:8789"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    depends_on:
+      documents-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "document_service.healthcheck"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  document-worker:
+    build:
+      context: .
+      dockerfile: documents/Dockerfile
+    command: ["python", "-m", "document_service.worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://document_writer:${DOCUMENT_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${DOCUMENT_MINIO_USER}
+      MINIO_SECRET_KEY: ${DOCUMENT_MINIO_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      DOCUMENT_API_TOKEN: ${DOCUMENT_API_TOKEN}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-4}
+      EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-180}
+      MAX_DOCUMENT_BYTES: ${MAX_DOCUMENT_BYTES:-52428800}
+      MAX_DOCUMENT_PAGES: ${MAX_DOCUMENT_PAGES:-500}
+      MAX_PAGES_PER_READ: ${MAX_PAGES_PER_READ:-8}
+      MAX_PAGES_PER_VIEW: ${MAX_PAGES_PER_VIEW:-4}
+      MAX_PAGE_RESPONSE_CHARS: ${MAX_PAGE_RESPONSE_CHARS:-12000}
+      MAX_READ_RESPONSE_CHARS: ${MAX_READ_RESPONSE_CHARS:-48000}
+      OCR_MIN_CHARS: ${OCR_MIN_CHARS:-40}
+      DOCUMENT_JOB_MAX_ATTEMPTS: ${DOCUMENT_JOB_MAX_ATTEMPTS:-3}
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    depends_on:
+      documents-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully

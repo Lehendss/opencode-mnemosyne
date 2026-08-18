@@ -7,3 +7,4 @@ __pycache__/
 data/
 backups/
 logs/
+node_modules/

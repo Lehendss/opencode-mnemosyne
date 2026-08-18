@@ -73,6 +73,8 @@ CREATE INDEX memory_search_idx ON memory USING gin (search_document);
 CREATE INDEX memory_title_trgm_idx ON memory USING gin (title gin_trgm_ops);
 CREATE INDEX memory_embedding_idx ON memory USING hnsw (embedding vector_cosine_ops);
 
+\ir /documents.sql
+
 SELECT format('CREATE ROLE memory_reader LOGIN PASSWORD %L', :'reader_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'memory_reader')
 \gexec

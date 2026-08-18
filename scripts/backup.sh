@@ -37,8 +37,8 @@ docker compose --project-directory "$ROOT" run --rm \
 
 tar -C "$ROOT/data" -cf "$DESTINATION.tmp/outbox.tar" outbox
 tar -C "$ROOT" --exclude='*/__pycache__' --exclude='*.pyc' -cf "$DESTINATION.tmp/config-source.tar" \
-  .env.example .gitignore Makefile README.md compose.yaml \
-  database launchd mcp plugin scripts worker
+  .env.example .gitignore Makefile README.md compose.yaml package.json package-lock.json \
+  database documents launchd mcp plugin scripts worker
 mkdir -p "$DESTINATION.tmp/opencode-config"
 python3 "$ROOT/scripts/sanitize-config.py" \
   "$HOME/.config/opencode/opencode.json" \

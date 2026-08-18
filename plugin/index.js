@@ -3,9 +3,12 @@ import { chmodSync, mkdirSync, openSync, closeSync, fsyncSync, renameSync, write
 import { homedir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 
-const PLUGIN_VERSION = "0.2.2"
+import { DOCUMENT_SYSTEM_GUIDANCE, documentTools, isPdfRead } from "./documents.js"
+
+const PLUGIN_VERSION = "0.2.3"
 const SCHEMA_VERSION = 1
 const MAX_STRING_CHARS = Number(process.env.OPENCODE_MEMORY_MAX_STRING_CHARS || 200000)
+const RECONCILE_ON_START = process.env.OPENCODE_MEMORY_RECONCILE_ON_START === "1"
 const MEMORY_HOME = resolve(
   process.env.OPENCODE_MEMORY_HOME || join(homedir(), "opencode-memory"),
 )
@@ -169,19 +172,23 @@ async function reconcileExistingSessions(client, project, directory) {
   }
 }
 
-export default async ({ client, project, directory }) => {
-  reconcileExistingSessions(client, project, directory).catch(async (error) => {
-    await client.app.log({
-      body: {
-        service: "opencode-memory",
-        level: "error",
-        message: "Startup reconciliation failed",
-        extra: { error: String(error) },
-      },
-    }).catch(() => undefined)
-  })
+export default async ({ client, project, directory, worktree }) => {
+  const documentRoot = project?.worktree || worktree || directory
+  if (RECONCILE_ON_START) {
+    reconcileExistingSessions(client, project, directory).catch(async (error) => {
+      await client.app.log({
+        body: {
+          service: "opencode-memory",
+          level: "error",
+          message: "Startup reconciliation failed",
+          extra: { error: String(error) },
+        },
+      }).catch(() => undefined)
+    })
+  }
 
   return {
+    tool: documentTools(documentRoot),
     event: async ({ event }) => {
       try {
         if (!CAPTURED_EVENTS.has(event.type)) return
@@ -224,6 +231,17 @@ export default async ({ client, project, directory }) => {
 6. Unfinished work, blockers, risks, and exact next steps.
 7. User preferences and project conventions that must continue to apply.
 Use concrete identifiers and do not include secrets or hidden reasoning.`)
+    },
+    "experimental.chat.system.transform": async (_input, output) => {
+      output.system.push(DOCUMENT_SYSTEM_GUIDANCE)
+    },
+    "tool.execute.before": async (input, output) => {
+      if (!isPdfRead(input.tool, output.args, directory)) return
+      const path = output.args.filePath || output.args.path
+      throw new Error(
+        `Raw PDF reads are blocked to protect SQLite and model context. Use pdf_ingest for ${path}, ` +
+        "then pdf_get, pdf_search, pdf_read_pages, or pdf_view_pages.",
+      )
     },
   }
 }
