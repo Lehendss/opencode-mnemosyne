@@ -211,5 +211,20 @@ def _vector(values: List[float]) -> str:
     return "[" + ",".join("%.9g" % value for value in values) + "]"
 
 
+def _without_nul(value: Any):
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, dict):
+        return {
+            _without_nul(key) if isinstance(key, str) else key: _without_nul(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_nul(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_without_nul(item) for item in value)
+    return value
+
+
 def _json(value: Any) -> str:
-    return json.dumps(value).replace("\\u0000", "")
+    return json.dumps(_without_nul(value))

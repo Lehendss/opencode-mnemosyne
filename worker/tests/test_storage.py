@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import json
 from unittest.mock import Mock
 
 
@@ -25,6 +26,11 @@ from memory_worker.storage import RawStorage, _json
 class RawStorageTest(unittest.TestCase):
     def test_json_metadata_removes_nul_escape(self):
         self.assertEqual(_json({"value": "before\x00after"}), '{"value": "beforeafter"}')
+
+    def test_json_metadata_preserves_literal_nul_escape(self):
+        encoded = _json({"value": r"before\u0000after"})
+
+        self.assertEqual(json.loads(encoded), {"value": r"before\u0000after"})
 
     def envelope(self):
         return {
