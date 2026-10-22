@@ -64,7 +64,7 @@ Open `http://127.0.0.1:8788` for the web memory browser -- search, filter by kin
 Start or rebuild:
 
 ```bash
-docker compose up -d --build
+make up
 ```
 
 Stop services without deleting data:
@@ -74,6 +74,33 @@ docker compose down
 ```
 
 OpenCode capture continues while containers are stopped.
+
+To keep the durable outbox on an external disk, set `OUTBOX_HOST_PATH` in `.env`
+to an absolute directory, stop the worker, copy and verify the existing outbox,
+then replace `data/outbox` with a symlink to that directory. The disk must be
+mounted before OpenCode or Docker starts. Backups follow `OUTBOX_HOST_PATH` and
+archive the actual files rather than the symlink.
+
+Set `BACKUP_ROOT` to an external directory when the internal disk cannot safely
+hold the uncompressed staging data. The backup script uses the current OpenCode
+binary at `~/.opencode/bin/opencode` by default so launchd does not select a
+legacy Homebrew installation.
+
+PostgreSQL and MinIO can also live on an external disk, with `data/postgres`
+and `data/minio` linked to their external directories. Stop all services before
+copying these directories, verify the copies before replacing the originals,
+and recreate the containers after changing the links. `make up` checks the real
+paths and mounted volumes before starting Docker; the database, object-store
+and outbox mounts never create missing host directories automatically. Run
+`bash scripts/check-storage.sh` to perform the same check without starting anything.
+
+On macOS, a LaunchAgent writing to `BACKUP_ROOT` on a removable volume needs
+Removable Volumes or Full Disk Access for `/bin/bash`. In System Settings >
+Privacy & Security > Full Disk Access, add `/bin/bash` and enable its switch.
+The LaunchAgent runs Bash directly with an explicit PATH, independent of login
+shell configuration. Verify the permission with `launchctl kickstart` and check
+both the exit status and the newly created archive. Until that succeeds, run
+`make backup` manually; a launchd exit code of 1 is not a successful backup.
 
 ## Document RAG
 
@@ -162,7 +189,11 @@ Each backup contains:
 - Platform source and sanitized OpenCode integration configuration.
 - Manifest and SHA-256 checksums.
 
-Local archives stay under `backups/` for 30 days. Restic retains 30 daily, 12 weekly and 12 monthly snapshots on the external SSD. `restore-test.sh` restores PostgreSQL into a temporary database, validates SQLite session counts, checks compressed event objects, verifies each PDF against the SHA-256 in its object key and confirms every database object reference is present.
+Backups temporarily stop the running memory worker, document API and document
+worker while PostgreSQL, MinIO and the outbox are captured, then resume them
+before compression and Restic. Failure cleanup also resumes those services.
+
+Local archives stay under `BACKUP_ROOT` for 30 days. Restic retains 30 daily, 12 weekly and 12 monthly snapshots on the external SSD. `restore-test.sh` restores PostgreSQL into a temporary database, validates SQLite session counts, checks compressed event objects, verifies each PDF against the SHA-256 in its object key and confirms every database object reference is present. Verification stages files beside the archive by default; set `RESTORE_TMPDIR` to use another writable filesystem.
 
 The Restic password is stored at `~/.config/opencode-memory/restic-password`. Store a copy in a password manager. Losing both the Mac and that password makes the encrypted external backup unrecoverable.
 

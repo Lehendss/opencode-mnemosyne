@@ -6,10 +6,14 @@
     <string>ai.opencode.memory.backup</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/zsh</string>
-        <string>-lc</string>
+        <string>/bin/bash</string>
         <string>/path/to/opencode-memory/scripts/backup.sh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>StartInterval</key>
     <integer>86400</integer>
     <key>WorkingDirectory</key>

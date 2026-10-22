@@ -10,7 +10,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       MEMORY_READER_PASSWORD: ${MEMORY_READER_PASSWORD}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - type: bind
+        source: ./data/postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
       - ./database/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
       - ./database/schema.sql:/schema.sql:ro
       - ./database/documents.sql:/documents.sql:ro
@@ -30,7 +34,11 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - ./data/minio:/data
+      - type: bind
+        source: ./data/minio
+        target: /data
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:59000:9000"
       - "127.0.0.1:59001:9001"
@@ -77,7 +85,11 @@ services:
       RETRY_DELAY_SECONDS: ${RETRY_DELAY_SECONDS:-300}
       MAX_MEMORY_CHARS: ${MAX_MEMORY_CHARS:-24000}
     volumes:
-      - ./data/outbox:/data/outbox
+      - type: bind
+        source: ${OUTBOX_HOST_PATH:-./data/outbox}
+        target: /data/outbox
+        bind:
+          create_host_path: false
     depends_on:
       postgres:
         condition: service_healthy

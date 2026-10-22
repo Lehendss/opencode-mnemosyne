@@ -26,6 +26,8 @@ EMBEDDING_DIMENSION=1024
 EMBEDDING_BATCH_SIZE=4
 EMBEDDING_TIMEOUT_SECONDS=180
 OUTBOX_ROOT=/data/outbox
+OUTBOX_HOST_PATH=./data/outbox
+BACKUP_ROOT=./backups
 ARCHIVE_RETENTION_DAYS=30
 RETRY_DELAY_SECONDS=300
 MAX_MEMORY_CHARS=24000
@@ -68,6 +70,67 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
+OUTBOX_HOST_PATH="${OUTBOX_HOST_PATH:-./data/outbox}"
+if [[ "$OUTBOX_HOST_PATH" != /* ]]; then
+  OUTBOX_HOST_PATH="$ROOT/${OUTBOX_HOST_PATH#./}"
+fi
+BACKUP_ROOT="${BACKUP_ROOT:-./backups}"
+if [[ "$BACKUP_ROOT" != /* ]]; then
+  BACKUP_ROOT="$ROOT/${BACKUP_ROOT#./}"
+fi
+mkdir -p "$ROOT/data"
+
+canonicalize_storage_path() {
+  local name="$1"
+  local path="${2%/}"
+  local parent base
+  if [[ -d "$path" ]]; then
+    (cd -P "$path" && pwd)
+    return
+  fi
+  parent="$(dirname "$path")"
+  base="$(basename "$path")"
+  if [[ ! -d "$parent" || "$base" == -* ]]; then
+    echo "$name requires an existing parent directory and a safe basename: $path" >&2
+    exit 1
+  fi
+  parent="$(cd -P "$parent" && pwd)"
+  printf '%s/%s\n' "$parent" "$base"
+}
+
+OUTBOX_HOST_PATH="$(canonicalize_storage_path OUTBOX_HOST_PATH "$OUTBOX_HOST_PATH")"
+BACKUP_ROOT="$(canonicalize_storage_path BACKUP_ROOT "$BACKUP_ROOT")"
+
+validate_storage_path() {
+  local name="$1"
+  local path="${2%/}"
+  local relative volume_root
+  if [[ -z "$path" || "$path" == "/" || "$path" == "$ROOT" || "$path" == "$HOME" ]]; then
+    echo "$name points to an unsafe directory: $path" >&2
+    exit 1
+  fi
+  if [[ "$path" == /Volumes/* ]]; then
+    relative="${path#/Volumes/}"
+    volume_root="/Volumes/${relative%%/*}"
+    if [[ "$path" == "$volume_root" ]] || ! /usr/sbin/diskutil info "$volume_root" >/dev/null 2>&1; then
+      echo "$name requires a mounted external volume and a directory below its root: $path" >&2
+      exit 1
+    fi
+  fi
+}
+
+validate_storage_path OUTBOX_HOST_PATH "$OUTBOX_HOST_PATH"
+validate_storage_path BACKUP_ROOT "$BACKUP_ROOT"
+if [[ "$(basename "$OUTBOX_HOST_PATH")" != "outbox" ]]; then
+  echo "OUTBOX_HOST_PATH must end in /outbox to keep backups portable." >&2
+  exit 1
+fi
+if [[ "$OUTBOX_HOST_PATH" == "$BACKUP_ROOT" ||
+      "$OUTBOX_HOST_PATH" == "$BACKUP_ROOT"/* ||
+      "$BACKUP_ROOT" == "$OUTBOX_HOST_PATH"/* ]]; then
+  echo "OUTBOX_HOST_PATH and BACKUP_ROOT must not overlap." >&2
+  exit 1
+fi
 TOKEN_DIR="$HOME/.config/opencode-memory"
 mkdir -p "$TOKEN_DIR"
 printf '%s\n' "$DOCUMENT_API_TOKEN" > "$TOKEN_DIR/document-token"
@@ -77,16 +140,16 @@ chmod 700 "$TOKEN_DIR"
 chmod 600 "$TOKEN_DIR/document-token" "$TOKEN_DIR/document-url" "$TOKEN_DIR/document-max-bytes"
 
 mkdir -p \
-  "$ROOT/data/outbox/pending" \
-  "$ROOT/data/outbox/processing" \
-  "$ROOT/data/outbox/retry" \
-  "$ROOT/data/outbox/archive" \
-  "$ROOT/data/outbox/failed" \
+  "$OUTBOX_HOST_PATH/pending" \
+  "$OUTBOX_HOST_PATH/processing" \
+  "$OUTBOX_HOST_PATH/retry" \
+  "$OUTBOX_HOST_PATH/archive" \
+  "$OUTBOX_HOST_PATH/failed" \
   "$ROOT/data/postgres" \
   "$ROOT/data/minio" \
   "$ROOT/data/document-cache" \
-  "$ROOT/backups"
-chmod 700 "$ROOT/data" "$ROOT/data/outbox" "$ROOT/data/outbox"/* "$ROOT/backups"
+  "$BACKUP_ROOT"
+chmod 700 "$ROOT/data" "$OUTBOX_HOST_PATH" "$OUTBOX_HOST_PATH"/* "$BACKUP_ROOT"
 
 npm --prefix "$ROOT" install --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null
 

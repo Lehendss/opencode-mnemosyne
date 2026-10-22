@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 data/
-backups/
+backups
 logs/
 node_modules/
+.DS_Store

@@ -4,6 +4,7 @@ setup:
 	./scripts/setup.sh
 
 up:
+	bash ./scripts/check-storage.sh
 	docker compose up -d --build
 
 down:
@@ -16,6 +17,7 @@ logs:
 	docker compose logs -f worker mcp documents document-worker
 
 test:
+	python3 -m unittest discover -s scripts -p 'test_*.py' -v
 	node --test plugin/index.test.js
 	PYTHONPATH=worker python3 -m unittest discover -s worker/tests -v
 	python3 -m compileall -q documents/document_service
@@ -36,4 +38,4 @@ backup:
 	./scripts/backup.sh
 
 restore-test:
-	./scripts/restore-test.sh "$$(ls -t backups/opencode-memory-*.tar.zst | head -n 1)"
+	./scripts/restore-test.sh
