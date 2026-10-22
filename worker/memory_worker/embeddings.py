@@ -22,9 +22,11 @@ class OllamaEmbeddings:
             timeout=self.timeout,
         )
         error_text = response.text.lower() if isinstance(response.text, str) else ""
-        size_error = response.status_code == 400 and any(
-            marker in error_text
-            for marker in ("context length", "input length", "too large", "too long")
+        size_error = response.status_code == 413 or (
+            response.status_code == 400 and any(
+                marker in error_text
+                for marker in ("context length", "input length", "too large", "too long")
+            )
         )
         if size_error:
             if len(batch) > 1:

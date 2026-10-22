@@ -90,6 +90,26 @@ class OllamaEmbeddingsTest(unittest.TestCase):
 
         post.assert_called_once()
 
+    @patch("memory_worker.embeddings.requests.post")
+    def test_recovers_from_http_413_by_splitting_and_shortening_inputs(self, post):
+        def response_for_batch(_url, json, timeout):
+            inputs = json["input"]
+            if len(inputs) > 1 or len(inputs[0]) > 1000:
+                response = Mock(status_code=413, text="Request Entity Too Large")
+                response.raise_for_status.side_effect = requests.HTTPError("request too large")
+                return response
+            response = Mock(status_code=200, text="")
+            response.json.return_value = {"embeddings": [[0.0, 1.0]]}
+            return response
+
+        post.side_effect = response_for_batch
+        embedder = OllamaEmbeddings("http://ollama", "bge-m3", 2, batch_size=2)
+        inputs = ["x" * 4000, "short"]
+
+        self.assertEqual(embedder.embed(inputs), [[0.0, 1.0], [0.0, 1.0]])
+        self.assertEqual(len(inputs[0]), 4000)
+        self.assertEqual(post.call_count, 5)
+
 
 if __name__ == "__main__":
     unittest.main()
